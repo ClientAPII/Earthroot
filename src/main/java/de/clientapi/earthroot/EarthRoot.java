@@ -53,7 +53,15 @@ public class EarthRoot extends EarthAbility implements AddonAbility, Listener {
             return;
         }
 
-        Block blockUnder = player.getLocation().getBlock().getRelative(0, -1, 0);
+        // Check if standing on a dirt_path or use the block below
+        Block feetBlock = player.getLocation().getBlock();
+        Block blockUnder;
+        if (feetBlock.getType() == Material.DIRT_PATH) {
+            blockUnder = feetBlock;
+        } else {
+            blockUnder = feetBlock.getRelative(0, -1, 0);
+        }
+
         if (blockUnder == null || !isEarthbendable(blockUnder)) {
             remove();
             return;
@@ -67,11 +75,18 @@ public class EarthRoot extends EarthAbility implements AddonAbility, Listener {
             Location center = player.getLocation();
             for (Player p : Bukkit.getOnlinePlayers()) {
                 if (p.equals(player)) continue;
-                if (p.getWorld().equals(center.getWorld()) && p.getLocation().distance(center) <= radius) {
-                    Block pBlockUnder = p.getLocation().getBlock().getRelative(0, -1, 0);
-                    if (pBlockUnder != null && isEarthbendable(pBlockUnder)) {
-                        affectedPlayers.put(p, pBlockUnder);
-                    }
+                Block pFeetBlock = p.getLocation().getBlock();
+                Block pBlockUnder;
+                if (pFeetBlock.getType() == Material.DIRT_PATH) {
+                    pBlockUnder = pFeetBlock;
+                } else {
+                    pBlockUnder = pFeetBlock.getRelative(0, -1, 0);
+                }
+
+                if (pBlockUnder != null && isEarthbendable(pBlockUnder)
+                        && p.getWorld().equals(center.getWorld())
+                        && p.getLocation().distance(center) <= radius) {
+                    affectedPlayers.put(p, pBlockUnder);
                 }
             }
         }
@@ -115,9 +130,14 @@ public class EarthRoot extends EarthAbility implements AddonAbility, Listener {
             p.setVelocity(new Vector(0, 0, 0));
 
             Block currentBlockUnder = p.getLocation().getBlock().getRelative(0, -1, 0);
-            if (!currentBlockUnder.equals(originalBlock)) {
+            Block pFeetBlock = p.getLocation().getBlock();
+            boolean isPath = (pFeetBlock.getType() == Material.DIRT_PATH);
+            Block expectedBlock = isPath ? pFeetBlock : currentBlockUnder;
+
+            if (!expectedBlock.equals(originalBlock)) {
                 teleportPlayerToRootedBlock(p, originalBlock);
             }
+
             Location particleLocation = originalBlock.getLocation().add(0.5, 1.1, 0.5);
             ParticleEffect.BLOCK_CRACK.display(
                     particleLocation,
@@ -128,6 +148,7 @@ public class EarthRoot extends EarthAbility implements AddonAbility, Listener {
                     0.1,
                     Material.DIRT.createBlockData()
             );
+
             if (p.equals(player)) {
                 mainPlayerStillOnBlock = true;
             }
@@ -190,7 +211,12 @@ public class EarthRoot extends EarthAbility implements AddonAbility, Listener {
 
     private void teleportPlayerToRootedBlock(Player p, Block block) {
         Location oldLoc = p.getLocation();
-        Location newLocation = block.getLocation().add(0.5, 1, 0.5);
+        double yOffset = 1.0;
+        if (block.getType() == Material.DIRT_PATH) { // From previous logic
+            yOffset = 1;
+        }
+
+        Location newLocation = block.getLocation().add(0.5, yOffset, 0.5);
         newLocation.setYaw(oldLoc.getYaw());
         newLocation.setPitch(oldLoc.getPitch());
         p.teleport(newLocation);
@@ -256,7 +282,7 @@ public class EarthRoot extends EarthAbility implements AddonAbility, Listener {
 
     @Override
     public String getDescription() {
-        return "Makes you and any players in radius stick to the Earthbendable block and display particles at everyone's feet.";
+        return "Makes you and any players in radius stick to Earthbendable blocks. Adjusted logic for dirt_path.";
     }
 
     @Override
@@ -266,6 +292,6 @@ public class EarthRoot extends EarthAbility implements AddonAbility, Listener {
 
     @Override
     public String getVersion() {
-        return "1.0.0";
+        return "1.0.1";
     }
 }
